@@ -4,6 +4,7 @@ SECRET_KEY = config("SECRET_KEY")
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
+    "django.contrib.auth",
     "django.contrib.staticfiles",
     "rest_framework",
     "corsheaders",
@@ -33,8 +34,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
+    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_PERMISSION_CLASSES": [],
+    "UNAUTHENTICATED_USER": None,
 }
 
-ORS_API_KEY = config("ORS_API_KEY")
-ORS_BASE_URL = "https://api.openrouteservice.org"
 OPEN_METEO_BASE_URL = "https://api.open-meteo.com/v1"

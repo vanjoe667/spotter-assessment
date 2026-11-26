@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Tuple
 import requests
-from django.conf import settings
+
 from ..utils.geo_utils import sample_checkpoints, determine_interval
 
 METERS_TO_MILES = 0.000621371
+OSRM_BASE_URL = "http://router.project-osrm.org"
 
 
 def get_routes(
@@ -13,31 +14,36 @@ def get_routes(
     departure_dt: datetime,
 ) -> List[Dict[str, Any]]:
     """
-    Calls ORS directions API and returns up to 3 route objects with checkpoints.
+    Calls OSRM public API and returns up to 3 route objects with checkpoints.
     origin / destination are (lng, lat) tuples.
     """
-    payload = {
-        "coordinates": [list(origin), list(destination)],
-        "alternative_routes": {"target_count": 3, "weight_factor": 1.6, "share_factor": 0.6},
-        "geometry": True,
-        "instructions": False,
-    }
+    lng1, lat1 = origin
+    lng2, lat2 = destination
+    coords_str = f"{lng1},{lat1};{lng2},{lat2}"
 
-    response = requests.post(
-        f"{settings.ORS_BASE_URL}/v2/directions/driving-hgv",
-        json=payload,
-        headers={"Authorization": settings.ORS_API_KEY, "Content-Type": "application/json"},
+    response = requests.get(
+        f"{OSRM_BASE_URL}/route/v1/driving/{coords_str}",
+        params={
+            "alternatives": "true",
+            "geometries": "geojson",
+            "overview": "full",
+            "steps": "false",
+        },
         timeout=30,
     )
     response.raise_for_status()
 
-    raw_routes = response.json().get("routes", [])
+    data = response.json()
+    if data.get("code") != "Ok":
+        raise RuntimeError(f"OSRM error: {data.get('message', data.get('code'))}")
+
+    raw_routes = data.get("routes", [])
     routes = []
 
     for idx, raw in enumerate(raw_routes[:3]):
-        summary = raw["summary"]
-        distance_miles = summary["distance"] * METERS_TO_MILES
-        duration_seconds = summary["duration"]
+        distance_meters = raw["distance"]
+        duration_seconds = raw["duration"]
+        distance_miles = distance_meters * METERS_TO_MILES
         duration_hours = duration_seconds / 3600
 
         coords = raw["geometry"]["coordinates"]  # [[lng, lat], ...]
@@ -61,7 +67,7 @@ def get_routes(
             "index": idx,
             "distance_miles": round(distance_miles, 2),
             "duration_hours": round(duration_hours, 2),
-            "geometry": [[c[1], c[0]] for c in coords],  # convert to [lat, lng] for Leaflet
+            "geometry": [[c[1], c[0]] for c in coords],  # [lng,lat] → [lat,lng] for Leaflet
             "checkpoints": checkpoints,
         })
 
